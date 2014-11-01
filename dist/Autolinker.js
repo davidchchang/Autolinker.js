@@ -1,6 +1,6 @@
 /*!
  * Autolinker.js
- * 0.12.2
+ * 0.12.3
  *
  * Copyright(c) 2014 Gregory Jacobs <greg@greg-jacobs.com>
  * MIT Licensed. http://www.opensource.org/licenses/mit-license.php
@@ -9,7 +9,6 @@
  */
 /*global define, module */
 ( function( root, factory ) {
-
 	if( typeof define === 'function' && define.amd ) {
 		define( factory );             // Define as AMD module if an AMD loader is present (ex: RequireJS).
 	} else if( typeof exports !== 'undefined' ) {
@@ -138,6 +137,13 @@
 		 * `true` if Twitter handles ("@example") should be automatically linked, `false` if they should not be.
 		 */
 		twitter : true,
+	
+		/**
+		 * @cfg {Boolean} hashtag
+		 *
+		 * `true` if hashtag handles ("#example") should be automatically linked, `false` if they should not be.
+		 */
+		hashtag : true,
 		
 		/**
 		 * @cfg {Boolean} newWindow
@@ -169,13 +175,14 @@
 		 * @cfg {String} className
 		 * 
 		 * A CSS class name to add to the generated links. This class will be added to all links, as well as this class
-		 * plus url/email/twitter suffixes for styling url/email/twitter links differently.
+		 * plus url/email/twitter/hashtag suffixes for styling url/email/twitter/hashtag links differently.
 		 * 
 		 * For example, if this config is provided as "myLink", then:
 		 * 
 		 * - URL links will have the CSS classes: "myLink myLink-url"
 		 * - Email links will have the CSS classes: "myLink myLink-email", and
 		 * - Twitter links will have the CSS classes: "myLink myLink-twitter"
+		 * - hashtag links will have the CSS classes: "myLink myLink-hashtag"
 		 */
 		className : "",
 			
@@ -232,7 +239,8 @@
 		 */
 		matcherRegex : (function() {
 			var twitterRegex = /(^|[^\w])@(\w{1,15})/,              // For matching a twitter handle. Ex: @gregory_jacobs
-			    
+			    hashtagRegex = /(^|[^\w])#(\w+)/,                   // For matching a hashtag name. Ex: #hashtag
+	
 			    emailRegex = /(?:[\-;:&=\+\$,\w\.]+@)/,             // something@ for email addresses (a.k.a. local-part)
 			    
 			    protocolRegex = /(?:[A-Za-z]{3,9}:(?:\/\/)?)/,      // match protocol, allow in format http:// or mailto:
@@ -252,8 +260,16 @@
 				')',
 				
 				'|',
+	
+	            '(',  // *** Capturing group $4, which can be used to check for a hashtag match. Use group $6 for the actual hashtag though. $5 may be used to reconstruct the original string in a replace()
+					// *** Capturing group $5, which matches the whitespace character before the '#' sign (needed because of no lookbehinds), and
+					// *** Capturing group $6, which matches the actual hashtag
+					hashtagRegex.source,
+				')',
+	
+				'|',
 				
-				'(',  // *** Capturing group $4, which is used to determine an email match
+				'(',  // *** Capturing group $7, which is used to determine an email match
 					emailRegex.source,
 					domainNameRegex.source,
 					tldRegex.source,
@@ -261,7 +277,7 @@
 				
 				'|',
 				
-				'(',  // *** Capturing group $5, which is used to match a URL
+				'(',  // *** Capturing group $8, which is used to match a URL
 					'(?:', // parens to cover match for protocol (optional), and domain
 						'(?:',  // non-capturing paren for a protocol-prefixed url (ex: http://google.com)
 							protocolRegex.source,
@@ -271,7 +287,7 @@
 						'|',
 						
 						'(?:',  // non-capturing paren for a 'www.' prefixed url (ex: www.google.com)
-							'(.?//)?',  // *** Capturing group $6 for an optional protocol-relative URL. Must be at the beginning of the string or start with a non-word character
+							'(.?//)?',  // *** Capturing group $9 for an optional protocol-relative URL. Must be at the beginning of the string or start with a non-word character
 							wwwRegex.source,
 							domainNameRegex.source,
 						')',
@@ -279,7 +295,7 @@
 						'|',
 						
 						'(?:',  // non-capturing paren for known a TLD url (ex: google.com)
-							'(.?//)?',  // *** Capturing group $7 for an optional protocol-relative URL. Must be at the beginning of the string or start with a non-word character
+							'(.?//)?',  // *** Capturing group $10 for an optional protocol-relative URL. Must be at the beginning of the string or start with a non-word character
 							domainNameRegex.source,
 							tldRegex.source,
 						')',
@@ -330,13 +346,13 @@
 		 * @private
 		 * @property {Autolinker.AnchorTagBuilder} tagBuilder
 		 * 
-		 * The AnchorTagBuilder instance used to build the URL/email/Twitter replacement anchor tags. This is lazily instantiated
+		 * The AnchorTagBuilder instance used to build the URL/email/Twitter/hashtag replacement anchor tags. This is lazily instantiated
 		 * in the {@link #getTagBuilder} method.
 		 */
 		
 		
 		/**
-		 * Automatically links URLs, email addresses, and Twitter handles found in the given chunk of HTML. 
+		 * Automatically links URLs, email addresses, Twitter handles, and hashtags found in the given chunk of HTML.
 		 * Does not link URLs found within HTML tags.
 		 * 
 		 * For instance, if given the text: `You should go to http://www.yahoo.com`, then the result
@@ -345,8 +361,8 @@
 		 * This method finds the text around any HTML elements in the input `textOrHtml`, which will be the text that is processed.
 		 * Any original HTML elements will be left as-is, as well as the text that is already wrapped in anchor (&lt;a&gt;) tags.
 		 * 
-		 * @param {String} textOrHtml The HTML or text to link URLs, email addresses, and Twitter handles within.
-		 * @return {String} The HTML, with URLs/emails/Twitter handles automatically linked.
+		 * @param {String} textOrHtml The HTML or text to link URLs, email addresses, Twitter handles and hashtags within.
+		 * @return {String} The HTML, with URLs/emails/Twitter handles/hashtags automatically linked.
 		 */
 		link : function( textOrHtml ) {
 			var me = this,  // for closure
@@ -458,23 +474,26 @@
 			var me = this,  // for closure
 			    charBeforeProtocolRelMatchRegex = this.charBeforeProtocolRelMatchRegex;
 			
-			return text.replace( this.matcherRegex, function( matchStr, $1, $2, $3, $4, $5, $6, $7 ) {
+			return text.replace( this.matcherRegex, function( matchStr, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ) {
 				var twitterMatch = $1,
 				    twitterHandlePrefixWhitespaceChar = $2,  // The whitespace char before the @ sign in a Twitter handle match. This is needed because of no lookbehinds in JS regexes.
 				    twitterHandle = $3,      // The actual twitterUser (i.e the word after the @ sign in a Twitter handle match)
-				    emailAddressMatch = $4,  // For both determining if it is an email address, and stores the actual email address
-				    urlMatch = $5,           // The matched URL string
-				    protocolRelativeMatch = $6 || $7,  // The '//' for a protocol-relative match, with the character that comes before the '//'
+				    hashtagMatch = $4,
+				    hashtagPrefixWhitespaceChar = $5,  // The whitespace char before the # sign in a hashtag match. This is needed because of no lookbehinds in JS regexes.
+				    hashtagName = $6,      // The actual hashtag name (i.e the word after the # sign)
+				    emailAddressMatch = $7,  // For both determining if it is an email address, and stores the actual email address
+				    urlMatch = $8,           // The matched URL string
+				    protocolRelativeMatch = $9 || $10,  // The '//' for a protocol-relative match, with the character that comes before the '//'
 				    
-				    prefixStr = "",       // A string to use to prefix the anchor tag that is created. This is needed for the Twitter handle match
+				    prefixStr = "",       // A string to use to prefix the anchor tag that is created. This is needed for the Twitter handle/hashtag match
 				    suffixStr = "",       // A string to suffix the anchor tag that is created. This is used if there is a trailing parenthesis that should not be auto-linked.
 				    
 				    match;  // Will be an Autolinker.match.Match object
 				
 				
-				// Return out with no changes for match types that are disabled (url, email, twitter), or for matches that are 
+				// Return out with no changes for match types that are disabled (url, email, twitter, hashtag), or for matches that are
 				// invalid (false positives from the matcherRegex, which can't use look-behinds since they are unavailable in JS).
-				if( !me.isValidMatch( twitterMatch, emailAddressMatch, urlMatch, protocolRelativeMatch ) ) {
+				if( !me.isValidMatch( twitterMatch, hashtagMatch, emailAddressMatch, urlMatch, protocolRelativeMatch ) ) {
 					return matchStr;
 				}
 				
@@ -498,6 +517,15 @@
 					}
 					match = new Autolinker.match.Twitter( { matchedText: matchStr, twitterHandle: twitterHandle } );
 					
+				}  else if( hashtagMatch ) {
+					// fix up the `matchStr` if there was a preceding whitespace char, which was needed to determine the match
+					// itself (since there are no look-behinds in JS regexes)
+					if( hashtagPrefixWhitespaceChar ) {
+						prefixStr = hashtagPrefixWhitespaceChar;
+						matchStr = matchStr.slice( 1 );  // remove the prefixed whitespace char from the match
+					}
+					match = new Autolinker.match.Hashtag( { matchedText: matchStr, hashtagName: hashtagName } );
+	
 				} else {  // url match
 					// If it's a protocol-relative '//' match, remove the character before the '//' (which the matcherRegex needed
 					// to match due to the lack of a negative look-behind in JavaScript regular expressions)
@@ -539,6 +567,8 @@
 		 * @private
 		 * @param {String} twitterMatch The matched Twitter handle, if there was one. Will be empty string if the match is not a 
 		 *   Twitter match.
+	     * @param {String} hashtagMatch The matched hashtag name, if there was one. Will be empty string if the match is not a
+		 *   hashtag match.
 		 * @param {String} emailAddressMatch The matched Email address, if there was one. Will be empty string if the match is not 
 		 *   an Email address match.
 		 * @param {String} urlMatch The matched URL, if there was one. Will be an empty string if the match is not a URL match.
@@ -548,9 +578,9 @@
 		 * @return {Boolean} `true` if the match given is valid and should be processed, or `false` if the match is invalid and/or 
 		 *   should just not be processed (such as, if it's a Twitter match, but {@link #twitter} matching is disabled}.
 		 */
-		isValidMatch : function( twitterMatch, emailAddressMatch, urlMatch, protocolRelativeMatch ) {
+		isValidMatch : function( twitterMatch, hashtagMatch, emailAddressMatch, urlMatch, protocolRelativeMatch ) {
 			if( 
-			    ( twitterMatch && !this.twitter ) || ( emailAddressMatch && !this.email ) || ( urlMatch && !this.urls ) ||
+			    ( twitterMatch && !this.twitter ) || ( hashtagMatch && !this.hashtag ) || ( emailAddressMatch && !this.email ) || ( urlMatch && !this.urls ) ||
 			    ( urlMatch && urlMatch.indexOf( '.' ) === -1 ) ||  // At least one period ('.') must exist in the URL match for us to consider it an actual URL
 			    ( urlMatch && /^[A-Za-z]{3,9}:/.test( urlMatch ) && !/:.*?[A-Za-z]/.test( urlMatch ) ) ||     // At least one letter character must exist in the domain name after a protocol match. Ex: skip over something like "git:1.0"
 			    ( protocolRelativeMatch && this.invalidProtocolRelMatchRegex.test( protocolRelativeMatch ) )  // a protocol-relative match which has a word character in front of it (so we can skip something like "abc//google.com")
@@ -636,7 +666,7 @@
 	
 	
 	/**
-	 * Automatically links URLs, email addresses, and Twitter handles found in the given chunk of HTML. 
+	 * Automatically links URLs, email addresses, Twitter handles and hashtags found in the given chunk of HTML.
 	 * Does not link URLs found within HTML tags.
 	 * 
 	 * For instance, if given the text: `You should go to http://www.yahoo.com`, then the result
@@ -685,7 +715,7 @@
 		 * 
 		 * @param {Object} dest The destination object.
 		 * @param {Object} src The source object.
-		 * @return {Object} The destination object.
+		 * @return {Object} The destination object (`dest`)
 		 */
 		assign : function( dest, src ) {
 			for( var prop in src ) {
@@ -1434,6 +1464,9 @@
 	 *                     
 	 *                 case 'twitter' :
 	 *                     console.log( "twitter: ", match.getTwitterHandle() );
+	 *
+	 *                 case 'hashtag' :
+	 *                     console.log( "hashtag: ", match.getHashtagName() );
 	 *             }
 	 *         }
 	 *     } );
@@ -1613,6 +1646,64 @@
 	} );
 	/*global Autolinker */
 	/**
+	 * @class Autolinker.match.Hashtag
+	 * @extends Autolinker.match.Match
+	 * 
+	 * Represents a Hashtag match found in an input string which should be Autolinked.
+	 * 
+	 * See this class's superclass ({@link Autolinker.match.Match}) for more details.
+	 */
+	Autolinker.match.Hashtag = Autolinker.Util.extend( Autolinker.match.Match, {
+		
+		/**
+		 * @cfg {String} hashtagName (required)
+		 * 
+		 * The Hashtag name that was matched.
+		 */
+		
+	
+		/**
+		 * Returns the type of match that this class represents.
+		 * 
+		 * @return {String}
+		 */
+		getType : function() {
+			return 'hashtag';
+		},
+		
+		
+		/**
+		 * Returns a string name for the type of match that this class represents.
+		 * 
+		 * @return {String}
+		 */
+		getHashtagName : function() {
+			return this.hashtagName;
+		},
+		
+	
+		/**
+		 * Returns the anchor href that should be generated for the match.
+		 * 
+		 * @return {String}
+		 */
+		getAnchorHref : function() {
+			return '#' + this.hashtagName;
+		},
+		
+		
+		/**
+		 * Returns the anchor text that should be generated for the match.
+		 * 
+		 * @return {String}
+		 */
+		getAnchorText : function() {
+			return '#' + this.hashtagName;
+		}
+		
+	} );
+	/*global Autolinker */
+	/**
 	 * @class Autolinker.match.Url
 	 * @extends Autolinker.match.Match
 	 * 
@@ -1637,7 +1728,7 @@
 		
 		/**
 		 * @cfg {Boolean} stripPrefix (required)
-		 * @inheritdoc {@link Autolinker#stripPrefix}
+		 * @inheritdoc Autolinker#stripPrefix
 		 */
 		
 	
