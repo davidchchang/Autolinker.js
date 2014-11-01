@@ -24,6 +24,9 @@
  *                     
  *                 case 'twitter' :
  *                     console.log( "twitter: ", match.getTwitterHandle() );
+ *
+ *                 case 'hashtag' :
+ *                     console.log( "hashtag: ", match.getHashtagName() );
  *             }
  *         }
  *     } );

@@ -56,6 +56,7 @@ module.exports = function(grunt) {
 					'src/match/Match.js',
 					'src/match/Email.js',
 					'src/match/Twitter.js',
+					'src/match/Hashtag.js',
 					'src/match/Url.js',
 					'src/umdEnd.js'
 				],

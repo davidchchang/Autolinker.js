@@ -5,7 +5,7 @@
   "authors": [
     "Gregory Jacobs <greg@greg-jacobs.com>"
   ],
-  "description": "Automatically links URLs, email addresses, and Twitter handles in a string of text or HTML.",
+  "description": "Automatically links URLs, email addresses, Twitter handles and hashtags in a string of text or HTML.",
   "keywords": [
     "auto",
     "link",

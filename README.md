@@ -12,7 +12,8 @@ So, this utility attempts to handle everything. It:
 - Will properly handle URLs with query parameters or a named anchor (i.e. hash)
 - Will autolink email addresses.
 - Will autolink Twitter handles.
-- Will properly handle HTML input. The utility will not change the `href` attribute inside anchor (&lt;a&gt;) tags (or any other 
+- Will autolink hashtags.
+- Will properly handle HTML input. The utility will not change the `href` attribute inside anchor (&lt;a&gt;) tags (or any other
   tag/attribute for that matter), and will not accidentally wrap the inner text of an anchor tag with a new one (which would cause 
   doubly-nested anchor tags).
 
@@ -94,14 +95,15 @@ These are the options which may be specified for linking. These are specified by
   Example: a url like 'http://www.yahoo.com/some/long/path/to/a/file' truncated to 25 characters may look like this: 'yahoo.com/some/long/pat..'<br /><br />
 - [className](http://gregjacobs.github.io/Autolinker.js/docs/#!/api/Autolinker-cfg-className) : String<br />
   A CSS class name to add to the generated anchor tags. This class will be added to all links, as well as this class
-  plus "url"/"email"/"twitter" suffixes for styling url/email/twitter links differently.
+  plus "url"/"email"/"twitter"/"hashtag" suffixes for styling url/email/twitter/hashtag links differently.
   
   For example, if this config is provided as "myLink", then:
   
   1) URL links will have the CSS classes: "myLink myLink-url"<br />
   2) Email links will have the CSS classes: "myLink myLink-email", and<br />
   3) Twitter links will have the CSS classes: "myLink myLink-twitter"<br />
-  
+  4) Hashtag links will have the CSS classes: "myLink myLink-hashtag"<br />
+
 - [urls](http://gregjacobs.github.io/Autolinker.js/docs/#!/api/Autolinker-cfg-urls) : Boolean<br />
   `true` to have URLs auto-linked, `false` to skip auto-linking of URLs. Defaults to `true`.<br />
 - [email](http://gregjacobs.github.io/Autolinker.js/docs/#!/api/Autolinker-cfg-email) : Boolean<br />
